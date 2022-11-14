@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/grpc-ecosystem/grpc-gateway/internal"
+	"google.golang.org/genproto/googleapis/api/httpbody"
 	"google.golang.org/grpc/grpclog"
 )
 
@@ -61,10 +62,19 @@ func ForwardResponseStream(ctx context.Context, mux *ServeMux, marshaler Marshal
 			return
 		}
 
+		if !wroteHeader {
+			if d, ok := marshaler.(*HTTPBodyMarshaler); ok {
+				w.Header().Set("Content-Type", d.ContentTypeFromMessage(resp))
+			}
+		}
+
 		var buf []byte
+		httpBody, isHTTPBody := resp.(*httpbody.HttpBody)
 		switch {
 		case resp == nil:
 			buf, err = marshaler.Marshal(errorChunk(streamError(ctx, mux.streamErrorHandler, errEmptyResponse)))
+		case isHTTPBody:
+			buf = httpBody.GetData()
 		default:
 			result := map[string]interface{}{"result": resp}
 			if rb, ok := resp.(responseBody); ok {
